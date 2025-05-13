@@ -1,11 +1,12 @@
 import streamlit as st
 from hashlib import pbkdf2_hmac
-from base64 import urlsafe_b64decode
+from base64 import urlsafe_b64encode
 from cryptography.fernet import Fernet
 import json
 import time
 import os
 import hashlib
+import base64
 
 
 DATA_FILE = "secure_data.json"
@@ -20,7 +21,7 @@ if "authanticated_user" not in st.session_state:
 if "failed_attempt" not in st.session_state:
     st.session_state.failed_attempt = 0
 
-if "Lockout_time" not in st.session_state:
+if "lockout_time" not in st.session_state:
     st.session_state.lockout_time = 0
     
 
@@ -34,9 +35,9 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data,f)
 
-def generate_key():
-    key = pbkdf2_hmac('sha256', passkey.encode(), SALT, 100000)
-    return urlsafe_b64decode(key)
+def generate_key(passkey):
+    raw_key = pbkdf2_hmac('sha256', passkey.encode(), SALT, 100000)
+    return urlsafe_b64encode(raw_key)
 
 def hash_password(password):
     return hashlib.pbkdf2_hmac('sha256', password.encode(),SALT, 100000).hex()
@@ -78,7 +79,7 @@ elif choice == "Register":
             st.warning("Already Registered")
 
         else:
-            stored_data(username)= {
+            stored_data[username] = {
                 "password": hash_password(password),
                 "data":[]
             }
@@ -88,7 +89,7 @@ elif choice == "Register":
         st.error("Both Field are required")
 
 # *** User Login ***
-elif choice == "login":
+elif choice == "Login":
     st.subheader("User Login")
 
     if time.time() < st.session_state.lockout_time:
@@ -100,23 +101,23 @@ elif choice == "login":
 
     if st.button("Login"):
         if username in stored_data and stored_data[username]["password"] == hash_password(password):
-            st.session_state.authanticate_user == username
-            st.session_state.failed_attempts = 0
+            st.session_state.authanticated_user = username
+            st.session_state.failed_attempt = 0
             st.success(f"Welcome {username}")
         else:
             st.session_state.failed_attempt += 1
-            remaining = 3 - st.session_state.failed_attempts
+            remaining = 3 - st.session_state.failed_attempt
             st.error(f"Invalid Cradintials! Attempt Left:{remaining}")
 
-            if st.session_state.failed_attempts >= 3:
-                st.session_state.lockout_time = time.time() = LOCKOUT_DURATION
+            if st.session_state.failed_attempt >= 3:
+                st.session_state.lockout_time = time.time() + LOCKOUT_DURATION
                 st.error("To Many failed attempts. Lockout for 60 seconds")
                 st.stop()
 
 
 
 # **** Store Data Securely ****
-elif choice == "Store":
+elif choice == "Store Data":
     if not st.session_state.authanticated_user:
         st.warning("Please Login First")
     else:
@@ -154,10 +155,10 @@ elif choice == "Retrive Data":
             passkey = st.text_input("Enter Passkey to Decrypt", type="password")
 
             if st.button("Decrypt"):
-                result = decrypt_text(encrypt_text, passkey)
+                result = decrypt_text(encrypted_input, passkey)
                 if result:
                     st.success(f"Decrypted : {result}")
                 else:
-                    st.error("Incorrect Passkey or Corroupted Data")
+                    st.error("Incorrect Passkey or Corrupted Data")
 
-                    
+
